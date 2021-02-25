@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-gateway
+spec:
+  selector:
+    matchLabels:
+      run: tenant-gateway
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: tenant-gateway
+    spec:
+      containers:
+      - name: tenant-gateway
+        image: sneyd321/tenant-gateway
+        ports:
+        - containerPort: 8079
+        
+      imagePullSecrets:
+        - name: key

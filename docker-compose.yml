@@ -1,0 +1,17 @@
+version: '3.5'
+
+services: 
+    tenant-gateway:
+        image: sneyd321/gateway
+
+        ports: 
+            - 8079:8079
+        networks: 
+            - roomr-network
+        volumes:
+            - ./:/usr/src/app 
+
+        restart: on-failure
+
+networks: 
+    roomr-network:
