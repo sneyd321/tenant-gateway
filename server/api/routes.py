@@ -1,7 +1,9 @@
 from . import api
 from flask import request, Response, jsonify
 import requests, uuid, pika, json
+from server.api.RequestManager import Zookeeper, RequestManager
 
+zookeeper = Zookeeper()
 
 
 
@@ -51,34 +53,39 @@ def authenticate_tenant(request):
 
 @api.route("House/<int:houseId>")
 def get_house(houseId):
-    tenantData = authenticate_tenant(request)
-    if tenantData:
-        url = get_house_service() + "House/" + str(houseId)
-        return handle_get(url, request)
-    return Response(response="Not Authorized", status=401)
+    tenantService = zookeeper.get_service("tenant-service")
+    if tenantService:
+        tenantManager = RequestManager(request, tenantService)
+        tenantId = tenantManager.authenticate()
+        if tenantId:
+            houseService = zookeeper.get_service("house-service")
+            if houseService:
+                houseManager = RequestManager(request, houseService)
+                return houseManager.get("house/v1/House/" + str(houseId) + "/Tenant")
+            return Response(response="Error: Tenant Not Available", status=503)
+        return Response(response="Not Authorized", status=401)
+    return Response(response="Error: Homeowner Not Available", status=503)
 
 #############################################################
 
-@api.route("/", methods=["GET", "POST"])
-def create_tenant_account():
-    if request.method == "GET":
-        try:
-            response = requests.get(get_tenant_service() + "SignUp", headers=request.headers)
-            if response.ok:
-                return response.text
-            return Response(response=response.text, status=response.status_code)
-        except requests.exceptions.ConnectionError:
-            return Response(response="Error: Service currently unavailable.", status=503)
+@api.route("/")
+def get_tenant_account():
+    service = zookeeper.get_service("tenant-service")
+    if service:
+        manager = RequestManager(request, service)
+        return manager.get_html("/tenant/v1/")
+    return Response(response="Error: Zookeeper down", status=503)
 
-    if request.method == "POST":
-        print(request.form, flush=True)
-        try:
-            response = requests.post(get_tenant_service() + "SignUp", data=request.form, headers=request.headers)
-            if response.ok:
-                return response.text
-            return Response(response=response.text, status=response.status_code)
-        except requests.exceptions.ConnectionError:
-            return Response(response="Error: Service currently unavailable.", status=503)
+
+@api.route("/", methods=["POST"])
+def create_tenant_account():
+    service = zookeeper.get_service("tenant-service")
+    if service:
+        manager = RequestManager(request, service)
+        return manager.post_html("/tenant/v1/")
+    return Response(response="Error: Zookeeper down", status=503)
+
+        
 
 
 
@@ -92,7 +99,7 @@ def get_tenant():
 
 ##########################################################
 
-@api.route("Login")
+@api.route("Login", methods=["POST"])
 def login_tenant():
     url = get_tenant_service() + "Login"
     return handle_post(url, request)
