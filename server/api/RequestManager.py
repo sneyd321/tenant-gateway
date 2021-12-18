@@ -1,6 +1,7 @@
-import requests
+import requests, json
 from flask import Response, jsonify, redirect
 from server import app, zk
+
 
 
 class Zookeeper:
@@ -21,6 +22,9 @@ class RequestManager:
         self.request = request
         self.service = service
 
+    def get_public_ip(self):
+        return "34.107.132.144"
+
 
     def post(self, resource):
         try:
@@ -28,6 +32,24 @@ class RequestManager:
             return Response(response=response.text, status=response.status_code)
         except requests.exceptions.ConnectionError:
             return Response(response="Error: Service currently unavailable.", status=503)
+
+    def post_problem(self):
+        url = "http://" + self.service + "/problem/v1/Problem"
+        image = self.request.files["image"]
+        data = self.request.form['data']
+        dataToDict = json.loads(data)
+        files = {
+            "image": (image.filename, image.read(), "image/jpg"),
+            "data": ("data", json.dumps(dataToDict), "application/json")
+        }
+        try:
+            response = requests.post(url, files=files)
+            return Response(response=response.text, status=response.status_code)
+        except requests.exceptions.ConnectionError:
+            return Response(response="Error: Service currently unavailable.", status=503)
+    
+
+
 
     def put(self, resource):
         try: 
@@ -39,7 +61,6 @@ class RequestManager:
 
     def get(self, resource):
         try:
-            print(self.service, flush=True)
             response = requests.get("http://" + self.service + "/" + resource, headers=self.request.headers)
             if response.ok:
                 return jsonify(response.json())
@@ -54,8 +75,8 @@ class RequestManager:
         try:
             response = requests.get("http://" + self.service + "/tenant/v1/Verify", headers=headers)
             if response.ok:
-                homeownerData = response.json()
-                return homeownerData["homeownerId"]
+                tenantData = response.json()
+                return tenantData["tenantId"]
             return None
         except requests.exceptions.ConnectionError:
             return None
@@ -65,7 +86,6 @@ class RequestManager:
     def get_html(self, resource):
         try:
             response = requests.get("http://" + self.service + resource, headers=self.request.headers)
-            print(response.status_code)
             if response.ok:
                 return response.text
             return Response(response=response.text, status=response.status_code)
@@ -74,15 +94,28 @@ class RequestManager:
 
 
 
+
     def post_html(self, resource, **kwargs):
         headers = kwargs.get("headers", self.request.headers)
         try:
-            
             response = requests.post("http://" + self.service + resource, data=self.request.form, headers=headers)
+            print("http://" + self.get_public_ip() + "/tenant-gateway/v1/" + response.text)
             if response.status_code == 201:
-                return redirect("http://192.168.0.108:8080/homeowner-gateway/v1/" + response.text)
+                return redirect("http://" + self.get_public_ip() + "/tenant-gateway/v1/" + response.text)
+            return Response(response=response.text, status=response.status_code)
+        except requests.exceptions.ConnectionError:
+            
+            return Response(response="Error: Page Failed to Load", status=503)
+
+
+    def post_profile(self, tenantId):
+        if not self.request.files or "image" not in self.request.files:
+            return Response(response="Invalid Request Data", status=400)
+
+        image = self.request.files["image"] 
+        files = {"image": (image.filename, image.read(), "image/jpg")}
+        try:
+            response = requests.post("http://" + self.service  + "/image/v1/Tenant/" + str(tenantId) + "/Profile", files=files)
             return Response(response=response.text, status=response.status_code)
         except requests.exceptions.ConnectionError:
             return Response(response="Error: Service currently unavailable.", status=503)
-
-

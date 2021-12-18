@@ -6,5 +6,5 @@ services:
         ports: 
             - 8079:8079
         volumes:
-            - ./:/usr/src/app 
+            - ./:/usr/src/app
 
